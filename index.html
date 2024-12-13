@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>CyberIQ</title>
+  </head>
+  <!-- <style>
+    html, body {
+        margin: 0;
+    }
+    body {
+        background-image: url('./assets/MainMenuGame.jpg');
+        background-repeat: repeat;
+    }
+    canvas {
+        display: block;
+        margin: auto;
+    }
+</style> -->
+<style>
+  canvas {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0 auto;
+  /* background-size: cover; */
+  /* background-repeat: no-repeat;*/
+  width: 95%;
+}
+body {
+  background-size: cover; /* Added this line */
+  background-repeat: no-repeat; /* Added this line */
+}
+</style>
+  <body>
+    <div id="content"></div>
+    <script src="build/app.js" type="module"></script>
+    <canvas id="game"></canvas>
+  </body>
+</html>
