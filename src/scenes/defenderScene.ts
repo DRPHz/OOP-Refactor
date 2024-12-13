@@ -75,8 +75,6 @@ export default class DefenderScene extends Scene {
 
   private enemySpawnTimer: number = 0;
 
-  private playerBox: { x: number; y: number; width: number; height: number };
-
   // Function to calculate the time score
   private timeScoreMinutesandSeconds(): string {
     let minutes: number = Math.floor((this.timeLimit / (1000 * 60)) % 60);
@@ -103,12 +101,6 @@ export default class DefenderScene extends Scene {
 
     this.DefenderBackground = CanvasRenderer.loadNewImage("./assets/background-defender-final.png");
     this.player = new Player(maxX / 2, maxY / 2, 100, 100, "./assets/player.png");
-    this.playerBox = {
-      x: this.player.x + 12,
-      y: this.player.y + 12,
-      width: this.player.width - 22,
-      height: this.player.height - 22,
-    };
 
     // Add event listener for keydown events
     document.addEventListener("keydown", this.handleKeyDown.bind(this));
@@ -255,68 +247,143 @@ export default class DefenderScene extends Scene {
 
   public update(elapsed: number): void {
     // Update the time limit
-    this.timer(elapsed);
+    if (this.timeLimit > 0 || this.lifes > 0) {
+      this.timeLimit -= elapsed;
+    } else {
+      this.getNextScene();
+    }
+
     this.projectiles.forEach((projectile) => {
       projectile.update();
     });
-    // Update the player's position
-    this.updatePlayer();
-    // Update enemies and check for collision with player
-    this.updateEnemies(this.playerBox);
-    this.updateCollisionProjectilesEnemies();
-    // Collision detection between projectiles and portals
-    this.updateCollisionProjectilesPortals();
-    // Portal spawn timer
-    this.portalTimer(elapsed);
-    // Enemy spawn timer
-    this.enemyTimer(elapsed);
-    // Power up items spawn timer
-    this.powerupSpawnTimer(elapsed);
-    //power up collision detection
-    this.powerupCollision();
-    this.powerupTimers(elapsed);
-    this.barriers.forEach((barrier) => {
-      barrier.update(this.player.x, this.player.y);
-    });
-  }
 
-  private powerupTimers(elapsed: number) {
-    //Turbo Timer
-    if (this.turboTimer > 0) {
-      this.turboTimer -= elapsed;
+    // Update the player's position
+    if (this.currentDirection === "ArrowLeft" || this.currentDirection === "KeyA") {
+      if (this.player.x > 0) {
+        if (this.turboActive === true) {
+          this.player.turboMoveLeft();
+        } else {
+          this.player.moveLeft();
+        }
+      }
+    } else if (this.currentDirection === "ArrowRight" || this.currentDirection === "KeyD") {
+      if (this.player.x < this.maxX - this.player.width) {
+        if (this.turboActive === true) {
+          this.player.turboMoveRight();
+        } else {
+          this.player.moveRight();
+        }
+      }
+    } else if (this.currentDirection === "ArrowUp" || this.currentDirection === "KeyW") {
+      if (this.player.y > 0) {
+        if (this.turboActive === true) {
+          this.player.turboMoveUp();
+        } else {
+          this.player.moveUp();
+        }
+      }
+    } else if (this.currentDirection === "ArrowDown" || this.currentDirection === "KeyS") {
+      if (this.player.y < this.maxY - this.player.height) {
+        {
+          if (this.player.y < this.maxY - this.player.height) {
+            if (this.turboActive === true) {
+              this.player.turboMoveDown();
+            } else {
+              this.player.moveDown();
+            }
+          }
+        }
+      }
     }
-    if (this.turboTimer <= 0) {
-      this.turboActive = false;
-      this.turboTimer = 0;
-    }
-    if (this.showTurboCard) {
-      this.turboCardTimer += elapsed;
-      if (this.turboCardTimer >= 15000) {
-        this.showTurboCard = false;
-        this.turboCardTimer = 0;
+    // Update enemies and check for collision with player
+    const playerBox = {
+      x: this.player.x + 12,
+      y: this.player.y + 12,
+      width: this.player.width - 22,
+      height: this.player.height - 22,
+    };
+
+    this.enemies.forEach((enemy, index) => {
+      enemy.update(playerBox.x, playerBox.y);
+      // Check for overlap between player and enemy bounding boxes
+      if (playerBox.x < enemy.x + enemy.width && playerBox.x + playerBox.width > enemy.x && playerBox.y < enemy.y + enemy.height && playerBox.y + playerBox.height > enemy.y) {
+        // Collision detected, delete the enemy
+        this.enemies.splice(index, 1);
+        if (this.firewallActive === true) {
+          this.barriers.splice(0, 1);
+          if (this.barriers.length === 0) {
+            this.firewallActive = false;
+          }
+        } else this.lifes--;
+      }
+    });
+
+    // Collision detection between projectiles and enemies
+    for (let i = 0; i < this.projectiles.length; i++) {
+      const projectile = this.projectiles[i];
+      for (let j = 0; j < this.enemies.length; j++) {
+        const enemy = this.enemies[j];
+
+        // Check for overlap between bounding boxes
+        if (projectile.x < enemy.x + enemy.width && projectile.x + projectile.width > enemy.x && projectile.y < enemy.y + enemy.height && projectile.y + projectile.height > enemy.y) {
+          // Remove the enemy from the array when hit by the projectile
+          this.defenderScore++;
+          this.enemies.splice(j, 1);
+          this.projectiles.splice(i, 1);
+          j--;
+        }
       }
     }
 
-    // Firewall Timer
-    if (this.firewallCardTimer > 0) {
-      this.firewallCardTimer -= elapsed;
-    }
-    if (this.firewallCardTimer <= 0) {
-      this.showFirewallCard = false;
-      this.firewallCardTimer = 0;
+    // Collision detection between projectiles and portals
+    for (let i = 0; i < this.projectiles.length; i++) {
+      const projectile = this.projectiles[i];
+      for (let j = 0; j < this.portals.length; j++) {
+        const portal = this.portals[j];
+
+        // Check for overlap between bounding boxes
+        if (projectile.x < portal.x + portal.width && projectile.x + projectile.width > portal.x && projectile.y < portal.y + portal.height && projectile.y + projectile.height > portal.y) {
+          // Remove the portal from the array when hit by the projectile
+          this.portals.splice(j, 1);
+          this.projectiles.splice(i, 1);
+          this.defenderScore += 3;
+          j--;
+        }
+      }
     }
 
-    // Scan Timer
-    if (this.scanCardTimer > 0) {
-      this.scanCardTimer -= elapsed;
+    // Portal spawn timer
+    this.portalSpawnTimer += elapsed;
+    if (this.portalSpawnTimer >= 6000 + Math.floor(Math.random() * 5000)) {
+      this.portalSpawnTimer = 0;
+      this.portalsSpawn();
     }
-    if (this.scanCardTimer <= 0) {
-      this.showScanCard = false;
-      this.scanCardTimer = 0;
-    }
-  }
 
-  private powerupCollision() {
+    // Enemy spawn timer
+    this.enemySpawnTimer += elapsed;
+    if (this.enemySpawnTimer >= 5000 + Math.floor(Math.random() * 10000)) {
+      this.enemySpawnTimer = 0;
+      this.spawnEnemiesFromPortals();
+    }
+
+    // Power up items spawn timer
+    const randomItemChance = Math.random() * 100;
+    const randomItemInterval = Math.random() * 2000 + 5000;
+    this.timeUntilNextItem += elapsed;
+    if (this.timeUntilNextItem >= randomItemInterval) {
+      this.timeUntilNextItem = 0;
+      if (randomItemChance <= 60) {
+        this.powerUpItems.push(new Coin());
+      } else if (randomItemChance <= 85) {
+        this.powerUpItems.push(new Turbo());
+      } else if (randomItemChance <= 95) {
+        this.powerUpItems.push(new Firewall());
+      } else {
+        this.powerUpItems.push(new Scan());
+      }
+    }
+
+    //power up collision detection
     this.powerUpItems.forEach((item) => {
       if (this.player.collidesWithItem(item) === true) {
         if (item instanceof Coin) {
@@ -363,142 +430,44 @@ export default class DefenderScene extends Scene {
         this.powerUpItems.splice(this.powerUpItems.indexOf(item), 1);
       }
     });
-  }
 
-  private powerupSpawnTimer(elapsed: number) {
-    const randomItemChance = Math.random() * 100;
-    const randomItemInterval = Math.random() * 2000 + 5000;
-    this.timeUntilNextItem += elapsed;
-    if (this.timeUntilNextItem >= randomItemInterval) {
-      this.timeUntilNextItem = 0;
-      if (randomItemChance <= 60) {
-        this.powerUpItems.push(new Coin());
-      } else if (randomItemChance <= 85) {
-        this.powerUpItems.push(new Turbo());
-      } else if (randomItemChance <= 95) {
-        this.powerUpItems.push(new Firewall());
-      } else {
-        this.powerUpItems.push(new Scan());
+    //Turbo Timer
+    if (this.turboTimer > 0) {
+      this.turboTimer -= elapsed;
+    }
+    if (this.turboTimer <= 0) {
+      this.turboActive = false;
+      this.turboTimer = 0;
+    }
+    if (this.showTurboCard) {
+      this.turboCardTimer += elapsed;
+      if (this.turboCardTimer >= 15000) {
+        this.showTurboCard = false;
+        this.turboCardTimer = 0;
       }
     }
-  }
 
-  private enemyTimer(elapsed: number) {
-    this.enemySpawnTimer += elapsed;
-    if (this.enemySpawnTimer >= 5000 + Math.floor(Math.random() * 10000)) {
-      this.enemySpawnTimer = 0;
-      this.spawnEnemiesFromPortals();
+    // Firewall Timer
+    if (this.firewallCardTimer > 0) {
+      this.firewallCardTimer -= elapsed;
     }
-  }
-
-  private portalTimer(elapsed: number) {
-    this.portalSpawnTimer += elapsed;
-    if (this.portalSpawnTimer >= 6000 + Math.floor(Math.random() * 5000)) {
-      this.portalSpawnTimer = 0;
-      this.portalsSpawn();
+    if (this.firewallCardTimer <= 0) {
+      this.showFirewallCard = false;
+      this.firewallCardTimer = 0;
     }
-  }
 
-  private updateCollisionProjectilesPortals() {
-    for (let i = 0; i < this.projectiles.length; i++) {
-      const projectile = this.projectiles[i];
-      for (let j = 0; j < this.portals.length; j++) {
-        const portal = this.portals[j];
-
-        // Check for overlap between bounding boxes
-        if (projectile.x < portal.x + portal.width && projectile.x + projectile.width > portal.x && projectile.y < portal.y + portal.height && projectile.y + projectile.height > portal.y) {
-          // Remove the portal from the array when hit by the projectile
-          this.portals.splice(j, 1);
-          this.projectiles.splice(i, 1);
-          this.defenderScore += 3;
-          j--;
-        }
-      }
+    // Scan Timer
+    if (this.scanCardTimer > 0) {
+      this.scanCardTimer -= elapsed;
     }
-  }
-
-  private updateCollisionProjectilesEnemies() {
-    // Collision detection between projectiles and enemies
-    for (let i = 0; i < this.projectiles.length; i++) {
-      const projectile = this.projectiles[i];
-      for (let j = 0; j < this.enemies.length; j++) {
-        const enemy = this.enemies[j];
-
-        // Check for overlap between bounding boxes
-        if (projectile.x < enemy.x + enemy.width && projectile.x + projectile.width > enemy.x && projectile.y < enemy.y + enemy.height && projectile.y + projectile.height > enemy.y) {
-          // Remove the enemy from the array when hit by the projectile
-          this.defenderScore++;
-          this.enemies.splice(j, 1);
-          this.projectiles.splice(i, 1);
-          j--;
-        }
-      }
+    if (this.scanCardTimer <= 0) {
+      this.showScanCard = false;
+      this.scanCardTimer = 0;
     }
-  }
 
-  private updateEnemies(playerBox: { x: number; width: number; y: number; height: number }) {
-    this.enemies.forEach((enemy, index) => {
-      enemy.update(playerBox.x, playerBox.y);
-      // Check for overlap between player and enemy bounding boxes
-      if (playerBox.x < enemy.x + enemy.width && playerBox.x + playerBox.width > enemy.x && playerBox.y < enemy.y + enemy.height && playerBox.y + playerBox.height > enemy.y) {
-        // Collision detected, delete the enemy
-        this.enemies.splice(index, 1);
-        if (this.firewallActive === true) {
-          this.barriers.splice(0, 1);
-          if (this.barriers.length === 0) {
-            this.firewallActive = false;
-          }
-        } else this.lifes--;
-      }
+    this.barriers.forEach((barrier) => {
+      barrier.update(this.player.x, this.player.y);
     });
-  }
-
-  private updatePlayer() {
-    if (this.currentDirection === "ArrowLeft" || this.currentDirection === "KeyA") {
-      if (this.player.x > 0) {
-        if (this.turboActive === true) {
-          this.player.turboMoveLeft();
-        } else {
-          this.player.moveLeft();
-        }
-      }
-    } else if (this.currentDirection === "ArrowRight" || this.currentDirection === "KeyD") {
-      if (this.player.x < this.maxX - this.player.width) {
-        if (this.turboActive === true) {
-          this.player.turboMoveRight();
-        } else {
-          this.player.moveRight();
-        }
-      }
-    } else if (this.currentDirection === "ArrowUp" || this.currentDirection === "KeyW") {
-      if (this.player.y > 0) {
-        if (this.turboActive === true) {
-          this.player.turboMoveUp();
-        } else {
-          this.player.moveUp();
-        }
-      }
-    } else if (this.currentDirection === "ArrowDown" || this.currentDirection === "KeyS") {
-      if (this.player.y < this.maxY - this.player.height) {
-        {
-          if (this.player.y < this.maxY - this.player.height) {
-            if (this.turboActive === true) {
-              this.player.turboMoveDown();
-            } else {
-              this.player.moveDown();
-            }
-          }
-        }
-      }
-    }
-  }
-
-  private timer(elapsed: number) {
-    if (this.timeLimit > 0 || this.lifes > 0) {
-      this.timeLimit -= elapsed;
-    } else {
-      this.getNextScene();
-    }
   }
 
   // Function to spawn enemies from existing portals
